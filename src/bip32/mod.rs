@@ -248,43 +248,48 @@ impl ChildNumber {
   }
 }
 
+fn append_child_number(elem: &str, out: &mut Vec<ChildNumber>) -> Result<(), Bip32Error> {
+  if elem.is_empty() {
+    return Err(Bip32Error::BadPath);
+  }
+  let hardened = elem.ends_with('\'') || elem.ends_with('h') || elem.ends_with('H');
+  let num_str = if hardened {
+    &elem[..elem.len() - 1]
+  } else {
+    elem
+  };
+  let n: u32 = num_str.parse().map_err(|_| Bip32Error::BadPath)?;
+  if n >= HARDENED_OFFSET {
+    return Err(Bip32Error::BadPath);
+  }
+  out.push(ChildNumber::new(n, hardened));
+  Ok(())
+}
+
 /// Parse "m/0h/1/2'/2" -> Vec<ChildNumber>
 pub fn parse_path(s: &str) -> Result<Vec<ChildNumber>, Bip32Error> {
   let s = s.trim();
   if s.is_empty() {
     return Err(Bip32Error::BadPath);
   }
-  let mut it = s.split('/');
-  let first = it.next().ok_or(Bip32Error::BadPath)?;
-  if first != "m" && first != "M" {
-    return Err(Bip32Error::BadPath);
-  }
+  let mut path_comps = s.split('/');
+  let first = path_comps.next().ok_or(Bip32Error::BadPath)?;
   let mut out = Vec::new();
-  for elem in it {
-    if elem.is_empty() {
-      return Err(Bip32Error::BadPath);
-    }
-    let hardened = elem.ends_with('\'') || elem.ends_with('h') || elem.ends_with('H');
-    let num_str = if hardened {
-      &elem[..elem.len() - 1]
-    } else {
-      elem
-    };
-    let n: u32 = num_str.parse().map_err(|_| Bip32Error::BadPath)?;
-    if n >= HARDENED_OFFSET {
-      return Err(Bip32Error::BadPath);
-    }
-    out.push(ChildNumber::new(n, hardened));
+  if first != "m" && first != "M" {
+    append_child_number(first, &mut out)?;
+  }
+  for elem in path_comps {
+    append_child_number(elem, &mut out)?;
   }
   Ok(out)
 }
 
 /// Derive an extended private key along a path from a master key.
 pub fn derive_priv_from_path(
-  master: &ExtendedPrivKey,
+  xprv: &ExtendedPrivKey,
   path: &[ChildNumber],
 ) -> Result<ExtendedPrivKey, Bip32Error> {
-  let mut xprv = master.clone();
+  let mut xprv = xprv.clone();
   for cn in path {
     xprv = xprv.ckd_priv(cn.number())?;
   }
@@ -293,10 +298,10 @@ pub fn derive_priv_from_path(
 
 /// Derive an extended public key along a (non-hardened) path from an xpub.
 pub fn derive_pub_from_path(
-  master: &ExtendedPubKey,
+  xpub: &ExtendedPubKey,
   path: &[ChildNumber],
 ) -> Result<ExtendedPubKey, Bip32Error> {
-  let mut xpub = master.clone();
+  let mut xpub = xpub.clone();
   for cn in path {
     if cn.is_hardened() {
       return Err(Bip32Error::HardenedFromPublic);

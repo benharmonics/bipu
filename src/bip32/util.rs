@@ -13,6 +13,7 @@ use crate::bip32::error::Bip32Error;
 /// point(p): compute P = p * G as a secp256k1 public key.
 ///
 /// `p` must be a 32-byte big-endian scalar in [1, n-1].
+#[allow(dead_code)]
 pub fn point(p: &[u8; 32]) -> Result<PublicKey, Bip32Error> {
   let sk = SecretKey::from_byte_array(*p).map_err(|_| Bip32Error::InvalidSecretKey)?;
   // Only a verification context is needed to derive a public key.
@@ -34,6 +35,7 @@ pub fn ser32(i: u32) -> [u8; 4] {
 ///
 /// Accepts any-length big-endian byte string up to 32 bytes and left-pads with zeros to 32.
 /// Returns an error if `p` would not fit in 32 bytes.
+#[allow(dead_code)]
 pub fn ser256(p_be: &[u8]) -> Result<[u8; 32], Bip32Error> {
   if p_be.len() > 32 {
     return Err(Bip32Error::IntegerTooLarge);

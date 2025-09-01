@@ -17,7 +17,7 @@ fn run_cmd_bip39_seed_derivation(matches: &ArgMatches) {
 fn run_cmd_bip32_key_derivation(matches: &ArgMatches) {
   let path: &String = matches.get_one("path").expect("path should be required");
   let cks = bip32::parse_path(path).expect("valid bip32 path. TODO: error handling");
-  let showpub = matches.contains_id("showpub");
+  let showpub = matches.get_flag("showpub");
 
   // Derive from extended public keys starting at any level
   if let Some(xkey) = matches.get_one::<String>("xprv") {
@@ -107,12 +107,12 @@ pub fn run() {
             )),
         )
         .arg(
-          arg!(-n --network <NETWORK> "network (either mainnet or testnet)")
+          arg!(-n --network <NETWORK>)
             .id("network")
             .default_value("mainnet")
             .value_parser(["mainnet", "testnet"]),
         )
-        .arg(arg!(--showpub "If set, show extended public key as well as extended private key")),
+        .arg(arg!(--showpub "If set, show extended public key as well as extended private key").action(clap::ArgAction::SetTrue)),
     )
     .subcommand(
       Command::new("39")
