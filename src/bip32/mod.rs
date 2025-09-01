@@ -9,8 +9,8 @@
 //! This aims to be concise and readable while following BIP-32.
 //! For production, add more tests (BIP-32 vectors), decoding, and robust error handling.
 
-mod util;
 mod error;
+mod util;
 
 use hmac::{Hmac, Mac};
 use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};

@@ -1,7 +1,7 @@
 mod bip32;
 mod bip39;
 
-use clap::{arg, ArgMatches, Command};
+use clap::{arg, builder::ValueParser, ArgMatches, Command};
 
 fn run_cmd_bip39_seed_derivation(matches: &ArgMatches) {
   let passphrase: &String = matches
@@ -15,19 +15,31 @@ fn run_cmd_bip39_seed_derivation(matches: &ArgMatches) {
 }
 
 fn run_cmd_bip32_key_derivation(matches: &ArgMatches) {
+  let path: &String = matches.get_one("path").expect("path should be required");
+  let cks = bip32::parse_path(path).expect("valid bip32 path. TODO: error handling");
+  let showpub = matches.contains_id("showpub");
+
+  // Derive from extended public keys starting at any level
+  if let Some(xkey) = matches.get_one::<String>("xprv") {
+    let (xkey, network) = bip32::parse_xprv(xkey).expect("xprv must be validated");
+    // TODO: error handling?
+    let xprv = bip32::derive_priv_from_path(&xkey, &cks).expect("derivation from xprv works");
+    println!("{}", xprv.to_base58(network));
+    if showpub {
+      println!("{}", xprv.to_xpub().to_base58(network));
+    }
+  }
+
   let ms_match = matches.get_one::<String>("mnemonic");
   let seed_match = matches.get_one::<String>("seed");
-  let xprv_match = matches.get_one::<String>("xprv");
+  let seed = match (ms_match, seed_match) {
+    (Some(mnemonic), None) => bip39::mnemonic_to_seed(mnemonic, "").to_vec(),
+    (None, Some(seed)) => hex::decode(seed).expect("seed should be hex string"),
+    _ => unreachable!("matches must be mutually-exclusive"),
+  };
   let network_match: &String = matches
     .get_one("network")
     .expect("default network should be enforced");
-  let seed = match (ms_match, seed_match, xprv_match) {
-    (Some(mnemonic), None, None) => bip39::mnemonic_to_seed(mnemonic, "").to_vec(),
-    (None, Some(seed), None) => hex::decode(seed).expect("seed should be hex string"),
-    (None, None, Some(xprv)) => unimplemented!("TODO: derive keys from xkeys"),
-    _ => unreachable!("matches must be mutually-exclusive"),
-  };
-  let path: &String = matches.get_one("path").expect("path should be required");
   let network = match network_match.as_str() {
     "mainnet" => bip32::Network::Mainnet,
     "testnet" => bip32::Network::Testnet,
@@ -35,16 +47,25 @@ fn run_cmd_bip32_key_derivation(matches: &ArgMatches) {
   };
 
   let master = bip32::ExtendedPrivKey::master(&seed).expect("mnemonic should have been validated");
-  let cks = bip32::parse_path(path).unwrap();
-  let xprv = bip32::derive_priv_from_path(&master, &cks).expect("derive_priv_from_path works with given child key");
+  let xprv = bip32::derive_priv_from_path(&master, &cks).unwrap();
   println!("{}", xprv.to_base58(network));
+  if showpub {
+    println!("{}", xprv.to_xpub().to_base58(network));
+  }
+}
+
+fn run_cmd_bip39_mnemonic_generation(matches: &ArgMatches) {
+  let ms_length: usize = *matches
+    .get_one("wordcount")
+    .expect("default wordcount of 12 is expected");
+  println!("{}", bip39::random_mnemonic_sentence(ms_length));
 }
 
 pub fn run() {
   let matches = Command::new(env!("CARGO_CRATE_NAME"))
     .version("v2025.0.1")
     .author("benharmonics")
-    .about("BIP utilities - BIP-39 mnemonic generation/seed derivation, BIP-32 key derivation, etc")
+    .about("BIP utilities for digital wallet management")
     .arg_required_else_help(true)
     .subcommand(
       Command::new("32")
@@ -56,7 +77,7 @@ pub fn run() {
             .id("mnemonic")
             .required_unless_present_any(["seed", "xprv"])
             .conflicts_with_all(["seed", "xprv"])
-            .value_parser(clap::builder::ValueParser::new(|s: &str| {
+            .value_parser(ValueParser::new(|s: &str| {
               if !s.chars().into_iter().all(|c| c.is_ascii()) {
                 return Err("invalid characters (non-ascii)");
               }
@@ -73,18 +94,25 @@ pub fn run() {
             .required_unless_present_any(["mnemonic", "xprv"])
             .conflicts_with_all(["mnemonic", "xprv"]),
         )
+        // TODO: allow xpub by converting this to xkey
         .arg(
           arg!(-x --xprv <XPRV> "BIP-32 extended private key (any depth)")
             .id("xprv")
             .required_unless_present_any(["mnemonic", "seed"])
-            .conflicts_with_all(["mnemonic", "seed"]),
+            .conflicts_with_all(["mnemonic", "seed"])
+            .value_parser(ValueParser::new(|s: &str| match bip32::parse_xkey(s) {
+              Ok(_) => Ok(s.to_string()),
+              Err(e) => Err(e.to_string()),
+            }
+            )),
         )
         .arg(
           arg!(-n --network <NETWORK> "network (either mainnet or testnet)")
             .id("network")
             .default_value("mainnet")
             .value_parser(["mainnet", "testnet"]),
-        ),
+        )
+        .arg(arg!(--showpub "If set, show extended public key as well as extended private key")),
     )
     .subcommand(
       Command::new("39")
@@ -97,7 +125,7 @@ pub fn run() {
             .arg(
               arg!([WORD_COUNT] "Number of words in the mnemonic - must be 12, 15, 18, 21, or 24")
                 .id("wordcount")
-                .value_parser(clap::builder::ValueParser::new(|s: &str| {
+                .value_parser(ValueParser::new(|s: &str| {
                   match s.parse::<usize>() {
                     Ok(ms_length) => {
                       if !(12..=24).contains(&ms_length) || ms_length % 3 != 0 {
@@ -132,12 +160,12 @@ pub fn run() {
       "39" => match matches.subcommand() {
         None => unreachable!("BIP39 subcommand should be required"),
         Some((cmdname, matches)) => match cmdname {
-          "new" => unimplemented!("TODO: BIP-39 mnemonic generation"),
-          "seed" => run_cmd_bip39_seed_derivation(&matches),
+          "new" => run_cmd_bip39_mnemonic_generation(matches),
+          "seed" => run_cmd_bip39_seed_derivation(matches),
           _ => unreachable!("unknown command in BIP39 utilities"),
         },
       },
-      "32" => run_cmd_bip32_key_derivation(&matches),
+      "32" => run_cmd_bip32_key_derivation(matches),
       _ => unreachable!("unknown top-level subcommand"),
     },
   }

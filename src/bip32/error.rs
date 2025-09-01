@@ -42,4 +42,3 @@ impl fmt::Display for Bip32Error {
     }
   }
 }
-
