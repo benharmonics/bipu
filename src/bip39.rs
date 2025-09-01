@@ -10,7 +10,7 @@
 use sha2::{Digest, Sha256, Sha512};
 use unicode_normalization::UnicodeNormalization;
 
-const WORDLIST: &str = include_str!("../../bip39wordlist.txt");
+const WORDLIST: &str = include_str!("../bip39wordlist.txt");
 
 fn checksum_bits(ms_length: usize) -> usize {
   // CS in bits
