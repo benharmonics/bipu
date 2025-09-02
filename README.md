@@ -2,6 +2,15 @@
 
 A CLI implementing various BIP utilities for managing digital wallets, including mnemonic sentence generation and conversion to 64-byte seeds (BIP-39) and derivation of private/public keys using BIP-32.
 
+```bash
+❯ MNEMONIC="$(bipu 39 new)"; echo $MNEMONIC
+innocent firm example reason need dice firm cover apology thrive essay evidence
+
+❯ bipu 32 -m "$MNEMONIC" --showpub m/44h/0h/0h/0/0
+xprvA3hrZCjzECe5RbqUi6722uGjKtbQK78ZPLba98BgDpKFDuBYaFUwCXwwcgsC4cJWEfrSnepoCmf4DiMSFPcUX7UZ4P1NPBqt6bwgyiTLppg
+xpub6GhCxiGt4aCNe5uwp7e2Q3DTsvRtiZrQkZXAwWbHn9rE6hWh7noBkLGRTzDeJL1GBb3Bqs9riMV41q99TK5qo3LjpdoA183iTTkj1hnR7Je
+```
+
 ## Installation and Usage
 
 You will need to have the `cargo` toolchain (i.e. Rust) installed to build and install this tool. Installation should be relatively easy, though:
@@ -10,10 +19,14 @@ You will need to have the `cargo` toolchain (i.e. Rust) installed to build and i
 cargo install /path/to/bipu
 ```
 
-For usage, run the program with the subcommand `help`:
+Commands are generally named after the BIP number which they are implementing; for example, BIP-32 key derivation utilities are available through the command `bipu 32`. These commands also have a more descriptive alias if you prefer using that for scripting: for example, you `bipu derive` is equivalent to `bipu 32`.
+
+For more details, run a command with the help flag, `-h` or `--help`:
 
 ```bash
-bipu help
+bipu --help
+# or
+bipu 32 --help
 ```
 
 ## BIP-32
