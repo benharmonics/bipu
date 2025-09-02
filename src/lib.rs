@@ -124,13 +124,13 @@ pub fn run() {
             .conflicts_with_all(["mnemonic", "seed"])
             .value_parser(ValueParser::new(|s: &str| match bip32::parse_xkey(s) {
               Ok(_) => Ok(s.to_string()),
-              Err(e) => Err(e.to_string()),
-            }
-            )),
+              Err(e) => Err(anyhow!("invalid mnemonic: {e}")),
+            })),
         )
         .arg(
           arg!(-n --network <NETWORK>)
             .id("network")
+            .conflicts_with("xkey") // because network is given by xprv/xpub prefix
             .default_value("mainnet")
             .value_parser(["mainnet", "testnet"]),
         )
