@@ -370,6 +370,7 @@ pub fn parse_xkey(
 }
 
 // Convenience wrappers
+#[allow(dead_code)]
 pub fn parse_xprv(s: &str) -> Result<(ExtendedPrivKey, Network), Bip32Error> {
   match parse_xkey(s)? {
     (Some(xprv), None, net) => Ok((xprv, net)),
@@ -377,6 +378,7 @@ pub fn parse_xprv(s: &str) -> Result<(ExtendedPrivKey, Network), Bip32Error> {
   }
 }
 
+#[allow(dead_code)]
 pub fn parse_xpub(s: &str) -> Result<(ExtendedPubKey, Network), Bip32Error> {
   match parse_xkey(s)? {
     (None, Some(xpub), net) => Ok((xpub, net)),

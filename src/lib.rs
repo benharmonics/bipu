@@ -1,6 +1,7 @@
 mod bip32;
 mod bip39;
 
+use anyhow::{anyhow, Context};
 use clap::{arg, builder::ValueParser, ArgMatches, Command};
 
 fn run_cmd_bip39_seed_derivation(matches: &ArgMatches) {
@@ -14,28 +15,47 @@ fn run_cmd_bip39_seed_derivation(matches: &ArgMatches) {
   println!("{}", hex::encode(seed));
 }
 
-fn run_cmd_bip32_key_derivation(matches: &ArgMatches) {
+fn run_cmd_bip32_key_derivation_from_xkey(
+  xkey: &str,
+  path: &[bip32::ChildNumber],
+  showpub: bool,
+) -> anyhow::Result<()> {
+  match bip32::parse_xkey(xkey).expect("xkey must be validated") {
+    (Some(xprv), None, network) => {
+      let xprv = bip32::derive_priv_from_path(&xprv, path)
+        .map_err(|e| anyhow!("failed to derive from xprv: {e}"))?;
+      println!("{}", xprv.to_base58(network));
+      if showpub {
+        println!("{}", xprv.to_xpub().to_base58(network));
+      }
+    }
+    (None, Some(xpub), network) => {
+      let xpub = bip32::derive_pub_from_path(&xpub, path)
+        .map_err(|e| anyhow!("failed to derive from xpub: {e}"))?;
+      println!("{}", xpub.to_base58(network));
+    }
+    _ => unreachable!("failed to parse xkey as either xprv or xpub without error"),
+  }
+  Ok(())
+}
+
+fn run_cmd_bip32_key_derivation(matches: &ArgMatches) -> anyhow::Result<()> {
   let path: &String = matches.get_one("path").expect("path should be required");
-  let cks = bip32::parse_path(path).expect("valid bip32 path. TODO: error handling");
+  let cks = bip32::parse_path(path).map_err(|e| anyhow!("failed to parse path: {e}"))?;
   let showpub = matches.get_flag("showpub");
 
-  // Derive from extended public keys starting at any level
+  // Derive from extended keys starting at any level
   if let Some(xkey) = matches.get_one::<String>("xprv") {
-    let (xkey, network) = bip32::parse_xprv(xkey).expect("xprv must be validated");
-    // TODO: error handling?
-    let xprv = bip32::derive_priv_from_path(&xkey, &cks).expect("derivation from xprv works");
-    println!("{}", xprv.to_base58(network));
-    if showpub {
-      println!("{}", xprv.to_xpub().to_base58(network));
-    }
+    return run_cmd_bip32_key_derivation_from_xkey(xkey, &cks, showpub);
   }
 
   let ms_match = matches.get_one::<String>("mnemonic");
   let seed_match = matches.get_one::<String>("seed");
   let seed = match (ms_match, seed_match) {
     (Some(mnemonic), None) => bip39::mnemonic_to_seed(mnemonic, "").to_vec(),
-    (None, Some(seed)) => hex::decode(seed).expect("seed should be hex string"),
-    _ => unreachable!("matches must be mutually-exclusive"),
+    (None, Some(seed)) => hex::decode(seed.strip_prefix("0x").unwrap_or(seed))
+      .context("seed should be hexadecimal string")?,
+    _ => unreachable!("mnemonic/seed must be mutually-exclusive and at least one must exist"),
   };
   let network_match: &String = matches
     .get_one("network")
@@ -46,12 +66,14 @@ fn run_cmd_bip32_key_derivation(matches: &ArgMatches) {
     _ => unreachable!("network must be either mainnet or testnet"),
   };
 
-  let master = bip32::ExtendedPrivKey::master(&seed).expect("mnemonic should have been validated");
+  let master = bip32::ExtendedPrivKey::master(&seed)
+    .map_err(|_| anyhow!("invalid seed length {}", seed.len()))?;
   let xprv = bip32::derive_priv_from_path(&master, &cks).unwrap();
   println!("{}", xprv.to_base58(network));
   if showpub {
     println!("{}", xprv.to_xpub().to_base58(network));
   }
+  Ok(())
 }
 
 fn run_cmd_bip39_mnemonic_generation(matches: &ArgMatches) {
@@ -71,7 +93,7 @@ pub fn run() {
       Command::new("32")
         .about("Derive child keys using the BIP-32 protocol")
         .visible_alias("derive")
-        .arg(arg!(<PATH> "BIP-32 derivation path e.g. m/5'/0").id("path"))
+        .arg(arg!(<PATH> "BIP-32 derivation path e.g. m/5'/0 or m/5h/0").id("path"))
         .arg(
           arg!(-m --mnemonic <MNEMONIC> "Random BIP-39 mnemonic sentence")
             .id("mnemonic")
@@ -165,7 +187,8 @@ pub fn run() {
           _ => unreachable!("unknown command in BIP39 utilities"),
         },
       },
-      "32" => run_cmd_bip32_key_derivation(matches),
+      "32" => run_cmd_bip32_key_derivation(matches)
+        .unwrap_or_else(|e| println!("failed to derive key: {e}")),
       _ => unreachable!("unknown top-level subcommand"),
     },
   }

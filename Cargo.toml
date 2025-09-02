@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.99"
 bs58 = { version = "0.5.1", features = ["check"] }
 clap = "4.5.46"
 getrandom = "0.3.3"
