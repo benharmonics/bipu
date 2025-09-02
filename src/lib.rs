@@ -45,7 +45,7 @@ fn run_cmd_bip32_key_derivation(matches: &ArgMatches) -> anyhow::Result<()> {
   let showpub = matches.get_flag("showpub");
 
   // Derive from extended keys starting at any level
-  if let Some(xkey) = matches.get_one::<String>("xprv") {
+  if let Some(xkey) = matches.get_one::<String>("xkey") {
     return run_cmd_bip32_key_derivation_from_xkey(xkey, &cks, showpub);
   }
 
@@ -97,8 +97,8 @@ pub fn run() {
         .arg(
           arg!(-m --mnemonic <MNEMONIC> "Random BIP-39 mnemonic sentence")
             .id("mnemonic")
-            .required_unless_present_any(["seed", "xprv"])
-            .conflicts_with_all(["seed", "xprv"])
+            .required_unless_present_any(["seed", "xkey"])
+            .conflicts_with_all(["seed", "xkey"])
             .value_parser(ValueParser::new(|s: &str| {
               if !s.chars().into_iter().all(|c| c.is_ascii()) {
                 return Err("invalid characters (non-ascii)");
@@ -113,13 +113,13 @@ pub fn run() {
         .arg(
           arg!(-s --seed <SEED> "64-byte seed, given as a hexadecimal string")
             .id("seed")
-            .required_unless_present_any(["mnemonic", "xprv"])
-            .conflicts_with_all(["mnemonic", "xprv"]),
+            .required_unless_present_any(["mnemonic", "xkey"])
+            .conflicts_with_all(["mnemonic", "xkey"]),
         )
         // TODO: allow xpub by converting this to xkey
         .arg(
-          arg!(-x --xprv <XPRV> "BIP-32 extended private key (any depth)")
-            .id("xprv")
+          arg!(-x --xkey <XKEY> "BIP-32 extended key (any depth)")
+            .id("xkey")
             .required_unless_present_any(["mnemonic", "seed"])
             .conflicts_with_all(["mnemonic", "seed"])
             .value_parser(ValueParser::new(|s: &str| match bip32::parse_xkey(s) {
